@@ -1014,13 +1014,49 @@ function renderArchiveTree(rows) {
     const months=Object.keys(tree[year]).sort((a,b)=>monthOrder.indexOf(b)-monthOrder.indexOf(a));
     const monthsHtml=months.map(month=>{
       const mOrders=tree[year][month];
-      const ordersHtml=mOrders.map(o=>`<div class="archive-order-row"><div><strong>${o.order_id}</strong><span style="color:var(--ash);margin-left:12px;font-size:12px">${o.pm_name}</span></div><div style="display:flex;align-items:center;gap:12px"><span style="color:var(--ash);font-size:12px">${o.order_date||'—'}</span><span class="status-badge status-delivered">Delivered</span></div></div>`).join('');
+      const ordersHtml=mOrders.map(o=>`<div class="archive-order-row" onclick="openArchivedDetail('${o.id}')" style="cursor:pointer"><div><strong>${o.order_id}</strong><span style="color:var(--ash);margin-left:12px;font-size:12px">${o.pm_name}</span></div><div style="display:flex;align-items:center;gap:12px"><span style="color:var(--ash);font-size:12px">${o.order_date||'—'}</span><span class="status-badge status-delivered">Delivered</span><span style="color:var(--sage);font-size:12px;margin-left:4px">View →</span></div></div>`).join('');
       return `<div class="archive-month"><div class="archive-month-header" onclick="toggleMonth(this)"><span class="chevron">›</span><span>${month}</span><span style="color:var(--ash);font-size:12px;margin-left:auto">${mOrders.length} orders</span></div><div class="archive-orders">${ordersHtml}</div></div>`;
     }).join('');
     const total=months.reduce((a,m)=>a+tree[year][m].length,0);
     return `<div class="archive-year"><div class="archive-year-header" onclick="toggleYear(this)"><span class="chevron">›</span><span>📁 ${year}</span><span style="color:var(--ash);font-size:13px;margin-left:auto;font-weight:400">${total} orders</span></div><div class="archive-months">${monthsHtml}</div></div>`;
   }).join('');
   document.getElementById('archive-tree').innerHTML=html;
+}
+
+async function openArchivedDetail(id) {
+  const {data:o,error}=await sb.from('archive').select('*').eq('id',id).single();
+  if(error||!o) return;
+  document.getElementById('detail-title').textContent = o.order_id + ' (Archived)';
+  const docs=[o.doc1,o.doc2,o.doc3,o.doc4,o.doc5].filter(Boolean);
+  const docHtml=docs.length
+    ? docs.map((d,i)=>`<a class="doc-link" href="${d}" target="_blank"><div class="doc-icon">📄</div><div><div style="font-weight:500">Document ${i+1}</div><div style="font-size:11px;color:var(--ash);margin-top:2px">${d.substring(0,55)}...</div></div></a>`).join('')
+    : '<p style="color:var(--ash);font-size:13px">No documents attached</p>';
+  const photoHtml=o.photo_url
+    ? `<img src="${o.photo_url}" class="photo-preview" alt="Delivery proof" style="margin-top:8px">`
+    : '<p style="color:var(--ash);font-size:13px">No photo uploaded</p>';
+  document.getElementById('detail-content').innerHTML=`
+    <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 12px;background:rgba(39,174,96,0.1);border-radius:20px;font-size:12px;color:#1a8a47;margin-bottom:16px">
+      🗂 Archived order — read only
+    </div>
+    <div class="detail-section">
+      <h3>Order Information</h3>
+      <div class="detail-grid">
+        <div class="detail-item"><label>Client</label><p>${o.pm_name}</p></div>
+        <div class="detail-item"><label>Client Email</label><p>${o.pm_email||'—'}</p></div>
+        <div class="detail-item"><label>Order Date</label><p>${o.order_date||'—'}</p></div>
+        <div class="detail-item"><label>Order Type</label><p><span class="type-badge ${o.order_type==='DELIVERY'?'type-delivery':o.order_type==='RETURN'?'type-return':'type-willcall'}">${o.order_type||'—'}</span></p></div>
+        <div class="detail-item"><label>Status</label><p><span class="status-badge status-delivered">Delivered</span></p></div>
+        <div class="detail-item"><label>Order Source</label><p><span class="type-badge ${(o.order_source||'NEXSTAR')==='NEXSTAR'?'type-nexstar':'type-other'}">${o.order_source||'NEXSTAR'}</span></p></div>
+        ${o.address?`<div class="detail-item" style="grid-column:1/-1"><label>Address</label><p><a href="${o.address}" target="_blank" style="color:var(--sage)">Open in Maps →</a></p></div>`:''}
+      </div>
+      ${o.notes?`<div style="margin-top:16px"><label style="font-size:11px;color:var(--ash);text-transform:uppercase;letter-spacing:0.3px">Notes</label><p style="font-size:14px;margin-top:6px;color:var(--charcoal-light)">${o.notes}</p></div>`:''}
+      <div style="margin-top:12px"><label style="font-size:11px;color:var(--ash);text-transform:uppercase;letter-spacing:0.3px">Archived On</label><p style="font-size:13px;margin-top:4px;color:var(--ash)">${new Date(o.archived_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'})}</p></div>
+    </div>
+    <div class="detail-section"><h3>Delivery Photo</h3>${photoHtml}</div>
+    <div class="detail-section"><h3>Documents (${docs.length})</h3>${docHtml}</div>`;
+  document.getElementById('detail-edit-btn').style.display='none';
+  document.getElementById('detail-delete-btn').style.display='none';
+  document.getElementById('detail-modal').classList.add('open');
 }
 
 function toggleYear(el){const m=el.nextElementSibling;const c=el.querySelector('.chevron');const open=m.style.display!=='none';m.style.display=open?'none':'block';c.classList.toggle('open',!open);}
