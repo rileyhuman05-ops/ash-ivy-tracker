@@ -474,13 +474,13 @@ let editingOrderId = null;
 async function sendEmail(to, subject, html, orderId='', emailType='') {
   try {
     const toArr = Array.isArray(to) ? to : [to];
-    const res = await fetch('https://api.resend.com/emails', {
+    const res = await fetch('https://lzulrhrtxncaomaeleez.supabase.co/functions/v1/send-email', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON}`
       },
-      body: JSON.stringify({ from: FROM_EMAIL, to: toArr, subject, html })
+      body: JSON.stringify({ to: toArr, subject, html })
     });
     const data = await res.json();
     const success = res.ok;
@@ -497,6 +497,7 @@ async function sendEmail(to, subject, html, orderId='', emailType='') {
 
     return success;
   } catch(e) {
+    console.error('Email error:', e);
     return false;
   }
 }
