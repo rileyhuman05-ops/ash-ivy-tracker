@@ -1768,7 +1768,7 @@ function warningsFor(r) {      // [level, text, 1 if it is a fit warning that "a
   if (more > 0) { const b0 = tightBy0[r.id] || {}, where = Object.keys(r.tightBy || {}).filter(s => r.tightBy[s] > (b0[s] || 0)).map(s => ((r.bay[s] && r.bay[s].name) || 'bay ' + (+s + 1)) + ' (' + (r.tightBy[s] - (b0[s] || 0)) + ')');
     fit('warn', fmt(more) + ' more boxes do not fit under the level above or the ' + CLEAR + ' ft ceiling' + (where.length ? ': ' + where.slice(0, 5).join(', ') + (where.length > 5 ? ' …' : '') : '') + '. Box sizes in the model are estimates.'); }
   if (nb.overlaps.length) w.push(['bad', 'Overlaps ' + nb.overlaps.map(o => o.code).join(', ') + '.']);
-  ['lo', 'hi'].forEach(k => { const g = nb[k]; if (!g || g.gap < 1.5) return; if (g.gap < MIN_AISLE) fit('bad', 'Aisle to ' + g.run.code + ' is only ' + g.gap.toFixed(1) + ' ft (' + MIN_AISLE + ' ft minimum).'); else w.push(['ok', 'Aisle to ' + g.run.code + ': ' + g.gap.toFixed(1) + ' ft.']); });
+  ['lo', 'hi'].forEach(k => { const g = nb[k]; if (!g || g.gap < 1.5) return; if (g.gap < MIN_AISLE) fit('bad', 'Aisle to ' + plain(g.run.code) + ' is only ' + g.gap.toFixed(1) + ' ft (' + MIN_AISLE + ' ft minimum).'); else w.push(['ok', 'Aisle to ' + plain(g.run.code) + ': ' + g.gap.toFixed(1) + ' ft.']); });
   if (r.status !== 'unmapped' && ![[q.x0, q.z0], [q.x1, q.z0], [q.x0, q.z1], [q.x1, q.z1]].every(p => inside(p[0] + (p[0] === q.x0 ? 0.05 : -0.05), p[1] + (p[1] === q.z0 ? 0.05 : -0.05)))) w.push(['warn', 'Part of this rack is outside the building.']);
   return w;
 }
@@ -1807,42 +1807,43 @@ let committed, INITIAL, lastLost = 0;
 const lostTotal = () => Object.keys(homeless).reduce((s, k) => s + homeless[k].boxes, 0);
 function describe(a, b) {
   const out = [], A = {}; a.runs.forEach(r => { A[r.id] = r; });
-  const tn = (st, id) => (st.types.find(t => t.id === id) || {}).name || id;
+  const q = s => esc(String(s == null ? '' : s));
+  const tn = (st, id) => q((st.types.find(t => t.id === id) || {}).name || id);
   const eff = (st, r) => { const t = st.types.find(x => x.id === r.type) || st.types[0]; return { h: r.height != null ? r.height : t.height, lv: r.levels || t.levels }; };
-  const span = bays => { const n = bays.map(x => x.name).filter(Boolean); return n.length ? (n.length > 1 ? n[0] + ' … ' + n[n.length - 1] : n[0]) : 'no names'; };
+  const span = bays => { const n = bays.map(x => x.name).filter(Boolean).map(q); return n.length ? (n.length > 1 ? n[0] + ' … ' + n[n.length - 1] : n[0]) : 'no names'; };
   b.runs.forEach(r => {
-    const o = A[r.id]; if (!o) { out.push('Rack ' + r.code + ': added (' + tn(b, r.type) + ')'); return; }
+    const o = A[r.id]; if (!o) { out.push('Rack ' + q(r.code) + ': added (' + tn(b, r.type) + ')'); return; }
     const ch = []; if (o.removed !== r.removed) ch.push(r.removed ? 'removed' : 'restored');
     if (o.type !== r.type) ch.push('type ' + tn(a, o.type) + ' → ' + tn(b, r.type));
     if (o.type !== r.type || o.height !== r.height || JSON.stringify(o.levels) !== JSON.stringify(r.levels)) { const eo = eff(a, o), en = eff(b, r); if (eo.h !== en.h) ch.push('height ' + ft(eo.h) + ' → ' + ft(en.h) + ' ft'); if (eo.lv.join() !== en.lv.join()) ch.push('levels ' + eo.lv.map(ft).join(' / ') + ' → ' + en.lv.map(ft).join(' / ') + ' ft'); }
     if (o.axis !== r.axis) ch.push('turned 90°'); else if (o.x !== r.x || o.z !== r.z) ch.push('moved ' + ft(r.x - o.x) + ' ft in X, ' + ft(r.z - o.z) + ' ft in Z');
     if (o.bays !== r.bays) ch.push('bays ' + o.bays + ' → ' + r.bays); if (o.pitch !== r.pitch) ch.push('bay width ' + ft(o.pitch) + ' → ' + ft(r.pitch) + ' ft'); if (o.depth !== r.depth) ch.push('depth ' + ft(o.depth) + ' → ' + ft(r.depth) + ' ft');
-    if (o.label !== r.label) ch.push('renamed "' + r.label + '"'); if (!!o.ok !== !!r.ok) ch.push(r.ok ? 'marked as built (fit warnings off)' : 'fit warnings back on'); if (!!o.noRecv !== !!r.noRecv) ch.push(r.noRecv ? 'left out of the receiving forecast' : 'back in the receiving forecast');
+    if (o.label !== r.label) ch.push('renamed "' + q(r.label) + '"'); if (!!o.ok !== !!r.ok) ch.push(r.ok ? 'marked as built (fit warnings off)' : 'fit warnings back on'); if (!!o.noRecv !== !!r.noRecv) ch.push(r.noRecv ? 'left out of the receiving forecast' : 'back in the receiving forecast');
     if (o.bay.map(x => x.name).join() !== r.bay.map(x => x.name).join()) ch.push('bay names ' + span(o.bay) + ' → ' + span(r.bay));
-    r.bay.forEach((x, s) => { const p = o.bay[s]; if (!p) return; const c2 = []; if (p.type !== x.type) c2.push('type ' + (x.type ? tn(b, x.type) : 'same as the rack')); if (p.height !== x.height) c2.push('height ' + (x.height == null ? 'same as the rack' : ft(x.height) + ' ft')); if (JSON.stringify(p.levels) !== JSON.stringify(x.levels)) c2.push('levels ' + (x.levels ? x.levels.map(ft).join(' / ') + ' ft' : 'same as the rack')); if (!!p.ok !== !!x.ok) c2.push(x.ok ? 'levels marked as built' : 'level warning back on'); if (c2.length) ch.push('bay ' + (x.name || s + 1) + ' ' + c2.join(', ')); });
-    if (ch.length) out.push('Rack ' + r.code + ': ' + (ch.length > 6 ? ch.slice(0, 6).join('; ') + '; and ' + (ch.length - 6) + ' more' : ch.join('; ')));
+    r.bay.forEach((x, s) => { const p = o.bay[s]; if (!p) return; const c2 = []; if (p.type !== x.type) c2.push('type ' + (x.type ? tn(b, x.type) : 'same as the rack')); if (p.height !== x.height) c2.push('height ' + (x.height == null ? 'same as the rack' : ft(x.height) + ' ft')); if (JSON.stringify(p.levels) !== JSON.stringify(x.levels)) c2.push('levels ' + (x.levels ? x.levels.map(ft).join(' / ') + ' ft' : 'same as the rack')); if (!!p.ok !== !!x.ok) c2.push(x.ok ? 'levels marked as built' : 'level warning back on'); if (c2.length) ch.push('bay ' + q(x.name || (s + 1)) + ' ' + c2.join(', ')); });
+    if (ch.length) out.push('Rack ' + q(r.code) + ': ' + (ch.length > 6 ? ch.slice(0, 6).join('; ') + '; and ' + (ch.length - 6) + ' more' : ch.join('; ')));
   });
   [['areas', 'Area'], ['equip', 'Equipment'], ['conts', 'Container']].forEach(kl => {
     const m = {}; a[kl[0]].forEach(o => { m[o.id] = o; });
     b[kl[0]].forEach(o => {
-      const p = m[o.id], nm = kl[1] + ' ' + o.name; if (!p) { out.push(nm + ': added'); return; }
-      const ch = []; if (p.removed !== o.removed) ch.push(o.removed ? 'removed' : 'restored'); if (p.name !== o.name) ch.push('renamed from "' + p.name + '"');
+      const p = m[o.id], nm = kl[1] + ' ' + q(o.name); if (!p) { out.push(nm + ': added'); return; }
+      const ch = []; if (p.removed !== o.removed) ch.push(o.removed ? 'removed' : 'restored'); if (p.name !== o.name) ch.push('renamed from "' + q(p.name) + '"');
       if (p.x !== o.x || p.z !== o.z) ch.push('moved ' + ft(o.x - p.x) + ' ft in X, ' + ft(o.z - p.z) + ' ft in Z'); if (p.rot !== o.rot) ch.push('turned to ' + o.rot + '°');
-      if (p.w !== o.w || p.d !== o.d) ch.push('resized to ' + ft(o.w) + ' × ' + ft(o.d) + ' ft'); if (p.loc !== o.loc) ch.push(o.loc ? 'now holds Fishbowl location "' + o.loc + '"' : 'holds no Fishbowl location');
+      if (p.w !== o.w || p.d !== o.d) ch.push('resized to ' + ft(o.w) + ' × ' + ft(o.d) + ' ft'); if (p.loc !== o.loc) ch.push(o.loc ? 'now holds Fishbowl location "' + q(o.loc) + '"' : 'holds no Fishbowl location');
       if (p.kind !== o.kind) ch.push(o.kind === 'order' ? 'repacked with the edited SKU sizes' : 'type changed'); if (!!p.received !== !!o.received) ch.push(o.received ? 'marked received' : 'brought back, not received'); if (!!p.fc !== !!o.fc) ch.push(o.fc ? 'added to the forecast' : 'taken out of the forecast');
-      if (JSON.stringify(p.lines) !== JSON.stringify(o.lines) && p.kind === o.kind) ch.push('contents changed, now ' + (o.lines || []).length + ' lines'); if ((p.eta || '') !== (o.eta || '')) ch.push(o.eta ? 'ETA ' + o.eta : 'ETA cleared'); if ((p.po || '') !== (o.po || '')) ch.push('reference "' + (o.po || '') + '"'); if (p.status !== o.status) ch.push('status "' + o.status + '"'); if (p.closed !== o.closed) ch.push(o.closed ? 'closed up' : 'opened'); if (p.hidden !== o.hidden) ch.push(o.hidden ? 'hidden' : 'shown');
+      if (JSON.stringify(p.lines) !== JSON.stringify(o.lines) && p.kind === o.kind) ch.push('contents changed, now ' + (o.lines || []).length + ' lines'); if ((p.eta || '') !== (o.eta || '')) ch.push(o.eta ? 'ETA ' + q(o.eta) : 'ETA cleared'); if ((p.po || '') !== (o.po || '')) ch.push('reference "' + q(o.po || '') + '"'); if (p.status !== o.status) ch.push('status "' + q(o.status) + '"'); if (p.closed !== o.closed) ch.push(o.closed ? 'closed up' : 'opened'); if (p.hidden !== o.hidden) ch.push(o.hidden ? 'hidden' : 'shown');
       if (ch.length) out.push(nm + ': ' + ch.join(', '));
     });
   });
   b.types.forEach(t => {
-    const o = a.types.find(x => x.id === t.id); if (!o) { out.push('Rack type added: ' + t.name); return; }
-    const ch = []; if (o.name !== t.name) ch.push('renamed from "' + o.name + '"'); if (o.height !== t.height) ch.push('default height ' + ft(o.height) + ' → ' + ft(t.height) + ' ft');
+    const o = a.types.find(x => x.id === t.id); if (!o) { out.push('Rack type added: ' + q(t.name)); return; }
+    const ch = []; if (o.name !== t.name) ch.push('renamed from "' + q(o.name) + '"'); if (o.height !== t.height) ch.push('default height ' + ft(o.height) + ' → ' + ft(t.height) + ' ft');
     if (o.levels.join() !== t.levels.join()) ch.push('default levels ' + o.levels.map(ft).join(' / ') + ' → ' + t.levels.map(ft).join(' / ') + ' ft');
     if (o.color !== t.color || o.beamColor !== t.beamColor) ch.push('colour'); if (o.structure !== t.structure || !!o.hangers !== !!t.hangers) ch.push('build'); if (o.upright !== t.upright) ch.push('upright size');
-    if (ch.length) out.push('Rack type "' + t.name + '": ' + ch.join(', '));
+    if (ch.length) out.push('Rack type "' + q(t.name) + '": ' + ch.join(', '));
   });
-  a.types.forEach(t => { if (!b.types.find(x => x.id === t.id)) out.push('Rack type deleted: ' + t.name); });
-  const sa = a.skus || {}, sb = b.skus || {}; Object.keys(Object.assign({}, sa, sb)).forEach(k => { const y = sb[k]; if (JSON.stringify(sa[k]) === JSON.stringify(y)) return; out.push('SKU ' + k + ': ' + (y ? 'box ' + [y.l, y.w, y.h].join(' × ') + ' in, ' + y.boxes + (y.boxes > 1 ? ' boxes' : ' box') + ' per unit' + (y.pcs > 1 ? ', ' + y.pcs + ' units per box' : '') : sa[k] && sa[k].desc != null && !SKU0[k] ? 'deleted' : 'back to the original size')); });
+  a.types.forEach(t => { if (!b.types.find(x => x.id === t.id)) out.push('Rack type deleted: ' + q(t.name)); });
+  const sa = a.skus || {}, sb = b.skus || {}; Object.keys(Object.assign({}, sa, sb)).forEach(k => { const y = sb[k]; if (JSON.stringify(sa[k]) === JSON.stringify(y)) return; out.push('SKU ' + q(k) + ': ' + (y ? 'box ' + [y.l, y.w, y.h].join(' × ') + ' in, ' + y.boxes + (y.boxes > 1 ? ' boxes' : ' box') + ' per unit' + (y.pcs > 1 ? ', ' + y.pcs + ' units per box' : '') : sa[k] && sa[k].desc != null && !SKU0[k] ? 'deleted' : 'back to the original size')); });
   const ca = a.cfg || {}, cb = b.cfg || {}; if (ca.minAisle !== cb.minAisle) out.push('Narrowest aisle before a warning: ' + cb.minAisle + ' ft'); if (ca.clear !== cb.clear) out.push('Clear height: ' + cb.clear + ' ft'); if (ca.fill !== cb.fill) out.push('Forecast fills open rack space to ' + cb.fill + '%');
   return out;
 }
@@ -1928,8 +1929,18 @@ function commit() {
   if (lost !== lastLost) { d.push(lost ? 'Stock with no home now: ' + fmt(lost) + ' boxes (see More)' : 'All stock has a home again'); lastLost = lost; }
   undoStack.push(committed); committed = now; d.forEach(s => log.unshift({ t, s })); forecast(); readouts(); scheduleCloudSave(); chrome(); return true;
 }
+function scrubState(st) {
+  const scrub = s => plain(s).slice(0, 120);
+  (st.types || []).forEach(t => { t.id = scrub(t.id); t.name = scrub(t.name); t.color = cssColor(t.color); t.beamColor = cssColor(t.beamColor || t.color); });
+  (st.runs || []).forEach(r => { r.code = scrub(r.code); r.label = scrub(r.label); (r.bay || []).forEach(b => { if (b && b.name != null) b.name = scrub(b.name); }); });
+  (st.areas || []).forEach(a => { a.name = scrub(a.name); a.loc = scrub(a.loc || ''); });
+  (st.equip || []).forEach(e => { e.name = scrub(e.name); e.kind = scrub(e.kind); });
+  (st.conts || []).forEach(c => { c.name = scrub(c.name); c.status = scrub(c.status || ''); c.po = scrub(c.po || ''); c.eta = scrub(c.eta || ''); });
+  if (st.skus && typeof st.skus === 'object') Object.keys(st.skus).forEach(k => { const s = st.skus[k]; if (!s || typeof s !== 'object') return; if (s.desc != null) s.desc = scrub(s.desc); });
+  return st;
+}
 function setState(json) {
-  const st = JSON.parse(json), keep = sel ? { kind: sel.kind, id: sel.obj.id, s: sel.s } : null;
+  const st = scrubState(JSON.parse(json)), keep = sel ? { kind: sel.kind, id: sel.obj.id, s: sel.s } : null;
   [runs, areas, equip, conts].forEach(list => list.forEach(o => { if (o.g) { clearGroup(o.g); o.g.parent && o.g.parent.remove(o.g); o.g = null; } }));
   types = st.types; runs = st.runs; areas = st.areas; equip = st.equip; conts = st.conts; nextId = st.nextId; skus = st.skus || {}; { const cf = st.cfg || {}; MIN_AISLE = cf.minAisle || 8; CLEAR = cf.clear || CLEAR0; fcFillPct = cf.fill || 85; } dirtyPacks(); refreshSkuList(); moveMode(false);
   sel = null; if (keep) { const o = byId(LISTS[keep.kind](), keep.id); if (o && !o.removed && !o.received && !(keep.kind === 'bay' && keep.s >= o.bays)) sel = { kind: keep.kind, obj: o, s: keep.s }; }
@@ -2035,12 +2046,12 @@ function renderMore() {
           '<div class="row"><label class="fld sm">Default height (ft)<input type="number" data-tf="height" step="0.5" min="2" max="40" value="' + ft(t.height) + '"></label><label class="fld sm">Upright size (ft)<input type="number" data-tf="upright" step="0.05" min="0.1" max="1" value="' + ft(t.upright) + '"></label></div>' +
           '<label class="fld">Default levels (ft above the floor, comma separated)<input type="text" data-tf="levels" value="' + t.levels.map(ft).join(', ') + '"></label><div class="row acts"><button data-act="dupType">Copy as new type</button><button class="danger" data-act="delType"' + (used || types.length < 2 ? ' disabled title="In use"' : '') + '>Delete type</button></div></div>' : '') + '</div>';
     }).join('') + '</div>' +
-    '<div class="sec">Changes <span class="dim">' + log.length + '</span></div><div class="dim">On the real site each line is saved with the name of whoever is logged in.</div><div class="list">' + (log.length ? log.slice(0, 150).map(l => '<div class="lg"><span class="tm">' + tf(l.t) + ' · You</span>' + esc(l.s) + '</div>').join('') : '<div class="dim">No changes yet.</div>') + '</div>';
+    '<div class="sec">Changes <span class="dim">' + log.length + '</span></div><div class="dim">On the real site each line is saved with the name of whoever is logged in.</div><div class="list">' + (log.length ? log.slice(0, 150).map(l => '<div class="lg"><span class="tm">' + esc(tf(l.t)) + ' · You</span> ' + String(l.s || '') + '</div>').join('') : '<div class="dim">No changes yet.</div>') + '</div>';
 }
 function readouts() {
   const e = $('info'); if (!e || !sel) return; const o = sel.obj;
   if (sel.kind === 'run') { const over = o.height != null || o.levels != null, ws = warningsFor(o), fr = FC && FC.byRun[o.id];
-    e.innerHTML = kv('Footprint', ft(lenOf(o)) + ' × ' + ft(o.depth) + ' ft') + kv('Stock on this rack', fmt(o.stock.boxes) + ' boxes · ' + fmt(o.stock.units) + ' units') + (fr ? kv('If received', '+' + fmt(fr.cartons) + ' boxes · ' + fmt(fr.beam) + ' ft of beam') : '') + ws.map(w => '<div class="msg ' + w[0] + '">' + esc(w[1]) + '</div>').join('') +
+    e.innerHTML = kv('Footprint', ft(lenOf(o)) + ' × ' + ft(o.depth) + ' ft') + kv('Stock on this rack', fmt(o.stock.boxes) + ' boxes · ' + fmt(o.stock.units) + ' units') + (fr ? kv('If received', '+' + fmt(fr.cartons) + ' boxes · ' + fmt(fr.beam) + ' ft of beam') : '') + ws.map(w => '<div class="msg ' + ({ ok:1, warn:1, bad:1, note:1 }[w[0]] ? w[0] : 'note') + '">' + esc(w[1]) + '</div>').join('') +
       (ws.some(w => w[2]) ? '<div class="row"><button data-act="asBuilt">This is how it is built: stop these warnings</button></div>' : o.ok ? '<div class="row"><button data-act="asBuilt">Turn the fit warnings back on</button></div>' : '');
     const rb = panel.querySelector('[data-act="useType"]'); if (rb) rb.disabled = !over; }
   else if (sel.kind === 'bay') { let n = 0, u = 0, lost = 0; (o.idx || []).forEach(i => { if (bayIndex[BAYKEYS[RB[i][0]]].s !== sel.s) return; if (rackBox(i)) { n++; u += RB[i][12]; } else lost++; });
