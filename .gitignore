@@ -12,5 +12,5 @@ server-data/vendor/
 
 supabase/.temp/
 
-# Split warehouse app JS (runtime only; not packed)
-server-data/app/*.js
+# Split sources (optional); ship editor.js bundle only
+server-data/app/0*.js
