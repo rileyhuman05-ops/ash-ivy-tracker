@@ -52,8 +52,9 @@ export default async function HomePage({ searchParams }) {
           Warehouse site model
         </h1>
         <p style={{ margin: "0 0 24px", color: "#b7c0ca", lineHeight: 1.5 }}>
-          Sign in with the warehouse username and password to open the 3D site
-          model. Credentials are checked on the server.
+          Sign in with a warehouse username and password to open the 3D site
+          model. Accounts: <strong>Riley.Human</strong> or{" "}
+          <strong>Nexstar2026</strong>. Credentials are checked on the server.
         </p>
         {!configured ? (
           <p
@@ -68,9 +69,10 @@ export default async function HomePage({ searchParams }) {
               lineHeight: 1.45,
             }}
           >
-            Server credentials are not configured yet. Set{" "}
-            <code>WAREHOUSE_USERNAME</code> and <code>WAREHOUSE_PASSWORD</code>{" "}
-            in Cursor Secrets, then republish or wait for the binding to apply.
+            Server credentials are not configured yet. Set primary{" "}
+            <code>WAREHOUSE_USERNAME</code> / <code>WAREHOUSE_PASSWORD</code>{" "}
+            and optional second <code>WAREHOUSE_USERNAME_2</code> /{" "}
+            <code>WAREHOUSE_PASSWORD_2</code> in Cursor Secrets, then republish.
           </p>
         ) : null}
         {source === "local-placeholder" ? (

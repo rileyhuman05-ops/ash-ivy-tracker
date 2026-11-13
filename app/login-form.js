@@ -83,10 +83,14 @@ export function LoginForm({ initialError, disabled }) {
           }}
         >
           Server secrets:{" "}
-          {status.configured ? "loaded" : "missing"} · username len{" "}
-          {status.usernameNormalizedLength ?? "?"} · password len{" "}
-          {status.passwordNormalizedLength ?? "?"} · username matches
-          Riley.Human: {status.usernameMatchesExpected ? "yes" : "no"}
+          {status.configured ? "loaded" : "missing"} · accounts:{" "}
+          {status.userCount ?? "?"} · Riley.Human slot:{" "}
+          {status.usernameMatchesExpected ? "yes" : "no"} · Nexstar2026 slot:{" "}
+          {status.secondUsernameConfigured || status.secondSlotComplete
+            ? "yes"
+            : status.secondSlotPartial
+              ? "incomplete"
+              : "no"}
           {status.usernameHasBom || status.passwordHasBom
             ? " · BOM detected in a secret"
             : ""}
@@ -95,6 +99,9 @@ export function LoginForm({ initialError, disabled }) {
             : ""}
         </p>
       ) : null}
+      <p style={{ margin: 0, fontSize: 12, color: "#9aa5b1", lineHeight: 1.4 }}>
+        Usernames: <strong>Riley.Human</strong> or <strong>Nexstar2026</strong>
+      </p>
       <label style={{ display: "grid", gap: 6, fontSize: 13, color: "#9aa5b1" }}>
         Username
         <input
@@ -102,6 +109,7 @@ export function LoginForm({ initialError, disabled }) {
           autoComplete="username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          placeholder="Riley.Human or Nexstar2026"
           style={field}
           disabled={disabled || pending}
           required
