@@ -3,10 +3,31 @@ import {
   sessionCookieHeader,
   verifyCredentials,
 } from "../../../lib/auth";
+import { allowLoginAttempt } from "../../../lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
+function clientKey(request) {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return request.headers.get("x-real-ip") || "unknown";
+}
+
 export async function POST(request) {
+  const limit = allowLoginAttempt(clientKey(request));
+  if (!limit.ok) {
+    return Response.json(
+      { error: "Too many sign-in attempts. Try again shortly." },
+      {
+        status: 429,
+        headers: {
+          "cache-control": "private, no-store",
+          "retry-after": String(limit.retryAfterSec || 60),
+        },
+      }
+    );
+  }
+
   let body;
   try {
     body = await request.json();

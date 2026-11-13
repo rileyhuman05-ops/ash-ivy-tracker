@@ -28,7 +28,7 @@ With secrets unset locally, sign in as `preview` / `preview`. Hosted Cursor/Verc
 | `/viewer` | Authenticated iframe shell |
 | `/api/viewer` | Serves `warehouse-model/warehouse-site-preview-v3.html` after session check |
 | `warehouse-model/` | Canonical HTML + notes |
-| `legacy-tracker/` | Previous Ash & Ivy delivery tracker (`index.html`) |
+| `legacy-tracker/` | Not shipped — README only; old tracker HTML removed from publish bundle |
 
 ## Publish
 
