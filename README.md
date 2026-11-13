@@ -6,10 +6,15 @@ Cursor Cloud app that serves the Bayline Mesa warehouse site model only after a 
 
 | Name | Purpose |
 | --- | --- |
-| `WAREHOUSE_USERNAME` | Login username |
-| `WAREHOUSE_PASSWORD` | Login password |
+| `WAREHOUSE_USERNAME` | Primary login username (`Riley.Human`) |
+| `WAREHOUSE_PASSWORD` | Primary login password |
+| `WAREHOUSE_USERNAME_2` | Second login username (`Nexstar2026`) — optional if only `WAREHOUSE_PASSWORD_2` is set |
+| `WAREHOUSE_PASSWORD_2` | Second login password |
+| `WAREHOUSE_USERS` | Optional JSON array of `{username,password}` for more accounts |
 
-Set both in **Cursor Secrets** (dashboard or the publish dialog prompt). Do not commit values.
+Accounts supported in the UI: **Riley.Human** and **Nexstar2026**.
+
+Set values in **Cursor Secrets**. Do not commit values. Never paste passwords into chat.
 
 ## Local smoke
 
