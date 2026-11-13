@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Keep the large warehouse HTML out of the static asset pipeline.
+  // Bundle server-only warehouse HTML with the identity-gated viewer route.
+  // Do not put this file under public/ — it must not be a static URL.
   outputFileTracingIncludes: {
-    "/api/viewer": ["./warehouse-model/warehouse-site-preview-v3.html"],
+    "/api/viewer": ["./server-data/warehouse-site-preview-v3.html"],
   },
 };
 

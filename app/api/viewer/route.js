@@ -5,8 +5,9 @@ import { requireIdentity } from "../../../cursor/identity.js";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/** Server-only path — not under public/; blocked by middleware if requested as a URL. */
 const MODEL_RELATIVE = path.join(
-  "warehouse-model",
+  "server-data",
   "warehouse-site-preview-v3.html"
 );
 

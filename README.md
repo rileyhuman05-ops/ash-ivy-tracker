@@ -28,8 +28,8 @@ Schema: `supabase/migrations/001_warehouse_layouts.sql` (RLS on, no anon policie
 | --- | --- |
 | `/` | Redirects to the model |
 | `/api/viewer` | Serves HTML after Cursor identity check |
-| `/api/layout` | Shared layout load/save |
-| `warehouse-model/` | Canonical HTML |
+| `/api/layout` | Shared layout load/save (size-capped body) |
+| `server-data/` | Server-only HTML (not a public URL; middleware 404s direct paths) |
 
 ## Local smoke
 
@@ -41,11 +41,10 @@ npm install
 npm run dev
 ```
 
-Without Supabase secrets, the viewer still opens (simulated Cursor identity in `cursor/identity.dev.js`) but shows “Cloud save not configured”.
+Without Supabase secrets, the viewer still opens (simulated Cursor identity in `cursor/identity.dev.js`) but shows “Cloud save not configured”. Access is Cursor Private identity only — no warehouse password modules ship in this app.
 
 ## Publish
 
-1. Ensure Supabase project `ogdmwufazgvpruzeiezf` is **Active** (unpause if needed).
-2. Apply migration if not already applied.
-3. Bind secrets `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` for this app; set values in Cursor Secrets.
-4. Merge this branch → `publish-app` for **bayline-warehouse**, keep visibility **Private**.
+1. Supabase project Active; `warehouse_layouts` migrated.
+2. Secrets `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` bound.
+3. Merge to `main` → `publish-app` for **bayline-warehouse**, keep visibility **Private**.

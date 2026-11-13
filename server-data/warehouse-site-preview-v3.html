@@ -1852,7 +1852,7 @@ async function cloudLoad() {
     const res = await fetch('/api/layout', { credentials: 'same-origin', cache: 'no-store' });
     if (res.status === 401) { cloudStatus = 'auth'; cloudMsg = 'Sign in to Cursor to sync'; chrome(); return; }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { cloudStatus = 'error'; cloudMsg = data.error || ('HTTP ' + res.status); chrome(); return; }
+    if (!res.ok) { cloudStatus = 'error'; cloudMsg = String(data.error || ('HTTP ' + res.status)); chrome(); return; }
     if (!data.configured) { cloudStatus = 'offline'; cloudMsg = 'Cloud save not configured'; chrome(); return; }
     if (!data.state || !data.state.runs || !data.state.types) { cloudStatus = 'ready'; cloudMsg = 'No saved layout yet'; chrome(); return; }
     cloudIgnore = true;
@@ -1890,7 +1890,7 @@ async function cloudSave(manual) {
     if (res.status === 503 || data.error === 'supabase_not_configured') {
       cloudStatus = 'offline'; cloudMsg = 'Cloud save not configured'; chrome(); return;
     }
-    if (!res.ok) { cloudStatus = 'error'; cloudMsg = data.error || ('HTTP ' + res.status); chrome(); return; }
+    if (!res.ok) { cloudStatus = 'error'; cloudMsg = String(data.error || ('HTTP ' + res.status)); chrome(); return; }
     cloudRev = data.revision || cloudRev;
     cloudStatus = 'saved';
     cloudMsg = 'Saved' + (data.updatedAt ? (' · ' + new Date(data.updatedAt).toLocaleString()) : '');
@@ -1927,7 +1927,7 @@ function chrome() {
   $('undo').disabled = !undoStack.length; $('undo').textContent = 'Undo' + (undoStack.length ? ' (' + undoStack.length + ')' : '');
   const lost = lostTotal(); let lvl = 0; runs.forEach(r => { lvl += r.unplaced ? r.unplaced.boxes : 0; });
   const cloudLabel = cloudStatus === 'saving' || cloudStatus === 'pending' ? cloudMsg : cloudStatus === 'saved' ? cloudMsg : cloudStatus === 'ready' ? cloudMsg : cloudStatus === 'loading' ? 'Loading saved layout…' : cloudStatus === 'offline' ? 'Cloud offline' : cloudStatus === 'conflict' || cloudStatus === 'error' || cloudStatus === 'auth' ? cloudMsg : '';
-  $('status').innerHTML = runs.filter(r => !r.removed).length + ' racks · ' + areas.filter(a => !a.removed).length + ' areas · ' + (undoStack.length ? undoStack.length + ' edit' + (undoStack.length > 1 ? 's' : '') + ' in undo' : 'no local undo') + (cloudLabel ? ' · ' + cloudLabel : '') + (lost + lvl ? ' · <b class="bad">' + fmt(lost + lvl) + ' boxes without a home</b>' : '');
+  $('status').innerHTML = runs.filter(r => !r.removed).length + ' racks · ' + areas.filter(a => !a.removed).length + ' areas · ' + (undoStack.length ? undoStack.length + ' edit' + (undoStack.length > 1 ? 's' : '') + ' in undo' : 'no local undo') + (cloudLabel ? ' · ' + esc(cloudLabel) : '') + (lost + lvl ? ' · <b class="bad">' + fmt(lost + lvl) + ' boxes without a home</b>' : '');
   ['racks', 'areas', 'equip', 'conts', 'skus', 'more'].forEach(k => $('tab-' + k).classList.toggle('on', tab === k));
 }
 function stockCard() {
