@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { requireIdentity } from "../../../cursor/identity.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,10 +11,15 @@ const MODEL_RELATIVE = path.join(
 );
 
 /**
- * Auth temporarily disabled for tonight's go-live.
- * Re-enable session checks in lib/auth.js + middleware when ready.
+ * Access control: Cursor Private app identity only (no warehouse password).
+ * Owner accepted that anyone who can open this Private app may view the model.
  */
-export async function GET() {
+export async function GET(request) {
+  const identity = await requireIdentity(request);
+  if (identity instanceof Response) {
+    return identity;
+  }
+
   const filePath = path.join(process.cwd(), MODEL_RELATIVE);
   let html;
   try {

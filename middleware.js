@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-// Auth gate temporarily disabled for tonight. Re-enable cookie checks when
-// password login returns.
+// Warehouse password middleware removed. Access is Cursor Private identity
+// enforced in /api/viewer via requireIdentity.
 export function middleware() {
   return NextResponse.next();
 }

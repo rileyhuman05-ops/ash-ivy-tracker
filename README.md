@@ -1,26 +1,22 @@
 # Bayline warehouse
 
-Cursor Cloud app that serves the Bayline Mesa warehouse site model.
+Serves the Bayline Mesa warehouse site model.
 
-## Access (tonight)
+## Access (owner-approved for tonight)
 
-**Username/password login is temporarily disabled.** Opening the app serves the 3D model directly. Auth helpers remain under `lib/auth.js` for a later re-enable.
-
-## Secrets (optional / future auth)
-
-| Name | Purpose |
-| --- | --- |
-| `WAREHOUSE_USERNAME` / `WAREHOUSE_PASSWORD` | Primary account (Riley.Human) when auth is re-enabled |
-| `WAREHOUSE_USERNAME_2` / `WAREHOUSE_PASSWORD_2` | Second account (Nexstar2026) when auth is re-enabled |
+- **Cursor Private app** — only the owner (and people they invite in Cursor) can open the URL.
+- **No warehouse username/password.** Cursor sign-in is the only gate.
+- A boss without Cursor **cannot** open the link while visibility stays Private.
+- Warehouse password login can be restored later; helpers remain in `lib/auth.js` unused.
 
 ## Layout
 
 | Path | Role |
 | --- | --- |
 | `/` | Redirects to the model |
-| `/api/viewer` | Serves `warehouse-model/warehouse-site-preview-v3.html` |
+| `/api/viewer` | Serves the HTML after Cursor identity check |
 | `warehouse-model/` | Canonical HTML |
 
 ## Publish
 
-Use Cursor `publish-app` from this repo root. Prefer **private** or **team** visibility.
+Keep visibility **Private** unless the owner explicitly chooses Public.

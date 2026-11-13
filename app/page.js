@@ -2,7 +2,10 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-/** Auth gate temporarily disabled for tonight — open the model directly. */
+/**
+ * No warehouse username/password. Access is Cursor Private SSO only.
+ * Redirects signed-in Private viewers to the model.
+ */
 export default function HomePage() {
   redirect("/api/viewer");
 }
