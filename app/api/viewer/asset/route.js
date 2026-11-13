@@ -29,6 +29,19 @@ function asDataScript(body) {
   return `window.DATA=${raw};`;
 }
 
+function seedRbCount(script) {
+  if (!script) return -1;
+  try {
+    const raw = script.startsWith("window.DATA=")
+      ? script.slice("window.DATA=".length).replace(/;?\s*$/, "")
+      : script;
+    const d = JSON.parse(raw);
+    return Array.isArray(d.rb) ? d.rb.length : 0;
+  } catch {
+    return -1;
+  }
+}
+
 async function loadFile(rel) {
   try {
     return await readFile(path.join(process.cwd(), rel), "utf8");
@@ -55,42 +68,48 @@ async function loadLocalAppScript() {
   }
 }
 
-async function loadSeedScript() {
-  const admin = getSupabaseAdmin();
-  if (admin) {
-    const { data, error } = await admin
-      .from("warehouse_seeds")
-      .select("body")
-      .eq("id", SEED_ID)
-      .maybeSingle();
-    if (!error && data && data.body != null) {
-      const body = data.body;
-      const ok =
-        body &&
-        typeof body === "object" &&
-        !Array.isArray(body) &&
-        body.site &&
-        Array.isArray(body.runs) &&
-        Array.isArray(body.types);
-      if (ok) {
-        const script = asDataScript(JSON.stringify(body));
-        if (script) return script;
-      }
-    }
-  }
-  // Structure always available even if the service role key is wrong/missing.
+async function loadLocalSeedScript() {
   for (const rel of [FULL_LOCAL_RELATIVE, SLIM_RELATIVE]) {
     const text = await loadFile(rel);
-    if (text) {
-      const script = asDataScript(text);
-      if (script) return script;
-    }
+    if (!text) continue;
+    const script = asDataScript(text);
+    if (script) return script;
   }
   return null;
 }
 
+async function loadCloudSeedScript() {
+  const admin = getSupabaseAdmin();
+  if (!admin) return null;
+  const { data, error } = await admin
+    .from("warehouse_seeds")
+    .select("body")
+    .eq("id", SEED_ID)
+    .maybeSingle();
+  if (error || !data || data.body == null) return null;
+  const body = data.body;
+  const ok =
+    body &&
+    typeof body === "object" &&
+    !Array.isArray(body) &&
+    body.site &&
+    Array.isArray(body.runs) &&
+    Array.isArray(body.types);
+  if (!ok) return null;
+  return asDataScript(JSON.stringify(body));
+}
+
+async function loadSeedScript() {
+  const local = await loadLocalSeedScript();
+  const cloud = await loadCloudSeedScript();
+  // Prefer whichever has more rack-bin stock so a bad service_role key
+  // cannot blank inventory when the shipped seed is complete.
+  if (seedRbCount(cloud) > seedRbCount(local)) return cloud;
+  if (local) return local;
+  return cloud;
+}
+
 async function loadAppScript() {
-  // Local bundle first — published host must not depend on Supabase for the editor.
   const local = await loadLocalAppScript();
   if (local) return local;
   const admin = getSupabaseAdmin();
