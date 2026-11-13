@@ -1846,15 +1846,29 @@ function describe(a, b) {
   return out;
 }
 let cloudRev = 0, cloudTimer = null, cloudStatus = 'idle', cloudMsg = '', cloudIgnore = false;
+function cloudParse(res) {
+  const ct = (res.headers.get('content-type') || '');
+  if (ct.indexOf('application/json') < 0) return Promise.resolve({ __nonJson: true, status: res.status });
+  return res.json().catch(() => ({}));
+}
+function cloudFailMsg(data, res) {
+  if (data && data.__nonJson) return 'Cloud API returned a sign-in page (HTTP ' + (data.status || res.status) + ')';
+  const err = data && (data.error || data.message);
+  if (err === 'supabase_invalid_api_key' || err === 'supabase_not_configured' || (data && data.configured === false && /SERVICE_ROLE|JWT|secret/i.test(String(data.message || '')))) {
+    return String(data.message || 'Cloud key rejected — update SUPABASE_SERVICE_ROLE_KEY in Cursor Secrets');
+  }
+  return String(err || ('HTTP ' + res.status));
+}
 async function cloudLoad() {
   cloudStatus = 'loading'; chrome();
   try {
     const res = await fetch('/api/layout', { credentials: 'same-origin', cache: 'no-store' });
     if (res.status === 401) { cloudStatus = 'auth'; cloudMsg = 'Sign in to Cursor to sync'; chrome(); return; }
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { cloudStatus = 'error'; cloudMsg = String(data.error || ('HTTP ' + res.status)); chrome(); return; }
-    if (!data.configured) { cloudStatus = 'offline'; cloudMsg = 'Cloud save not configured'; chrome(); return; }
-    if (!data.state || !data.state.runs || !data.state.types) { cloudStatus = 'ready'; cloudMsg = 'No saved layout yet'; chrome(); return; }
+    const data = await cloudParse(res);
+    if (data.__nonJson) { cloudStatus = 'auth'; cloudMsg = cloudFailMsg(data, res); chrome(); return; }
+    if (!res.ok) { cloudStatus = (data.error === 'supabase_invalid_api_key' || res.status === 503) ? 'offline' : 'error'; cloudMsg = cloudFailMsg(data, res); chrome(); return; }
+    if (!data.configured) { cloudStatus = 'offline'; cloudMsg = String(data.message || 'Cloud save not configured'); chrome(); return; }
+    if (!data.state || !data.state.runs || !data.state.types) { cloudRev = data.revision || 0; cloudStatus = 'ready'; cloudMsg = 'No saved layout yet'; chrome(); return; }
     cloudIgnore = true;
     try {
       cloudRev = data.revision || 0;
@@ -1879,7 +1893,8 @@ async function cloudSave(manual) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ state: JSON.parse(getState()), revision: cloudRev })
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await cloudParse(res);
+    if (data.__nonJson) { cloudStatus = 'auth'; cloudMsg = cloudFailMsg(data, res); chrome(); return; }
     if (res.status === 409) {
       cloudStatus = 'conflict';
       cloudMsg = 'Someone else saved first — reload to get their layout, or Save again to overwrite';
@@ -1887,10 +1902,10 @@ async function cloudSave(manual) {
       chrome();
       return;
     }
-    if (res.status === 503 || data.error === 'supabase_not_configured') {
-      cloudStatus = 'offline'; cloudMsg = 'Cloud save not configured'; chrome(); return;
+    if (res.status === 503 || data.error === 'supabase_not_configured' || data.error === 'supabase_invalid_api_key') {
+      cloudStatus = 'offline'; cloudMsg = cloudFailMsg(data, res); chrome(); return;
     }
-    if (!res.ok) { cloudStatus = 'error'; cloudMsg = String(data.error || ('HTTP ' + res.status)); chrome(); return; }
+    if (!res.ok) { cloudStatus = 'error'; cloudMsg = cloudFailMsg(data, res); chrome(); return; }
     cloudRev = data.revision || cloudRev;
     cloudStatus = 'saved';
     cloudMsg = 'Saved' + (data.updatedAt ? (' · ' + new Date(data.updatedAt).toLocaleString()) : '');
@@ -1903,6 +1918,9 @@ function scheduleCloudSave() {
   if (cloudTimer) clearTimeout(cloudTimer);
   cloudTimer = setTimeout(() => cloudSave(false), 900);
 }
+function flushCloudSave() { if (cloudIgnore) return; if (cloudTimer || cloudStatus === 'pending') cloudSave(false); }
+addEventListener('pagehide', flushCloudSave);
+addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushCloudSave(); });
 function commit() {
   const now = getState(); if (now === committed) return false;
   const d = describe(JSON.parse(committed), JSON.parse(now)), t = new Date(), lost = lostTotal();
@@ -2235,6 +2253,7 @@ function renderConts() {
   if (!sel || sel.kind !== 'cont') return '<div class="how"><b>Containers</b><div class="dim">On site: the three on the ramp. On order and incoming: the packed loads from the planner plus any you build here. Tick them below to see the rack space they need. Mark one received when it is unloaded and it leaves the model.</div></div>' + fcCard() + list + '<div class="row" style="margin-top:10px">' + pm + '</div>' + stockCard();
   const c = sel.obj, n = contCount(c), shown = c.shown == null ? n : c.shown, inn = isIn(c), ord = c.kind === 'order';
   return '<div class="hd">' + shellSw(c) + '<input class="ttl" data-f="name" value="' + esc(c.name) + '" aria-label="Container name"></div>' +
+    moveHtml(c, '<button data-act="turn" data-by="90">Turn 90°</button>') +
     '<label class="fld">Status<select data-f="status">' + (ord ? ['On order'] : []).concat(['Incoming', 'Arrived, in the truck court', 'On the ramp', 'At a dock door', 'Unloaded']).map(s => opt(s, s, c.status)).join('') + '</select></label>' +
     (ord ? '<div class="row"><label class="fld sm">Order or PO reference<input type="text" data-f="po" value="' + esc(c.po || '') + '" maxlength="40"></label><label class="fld sm">Expected (ETA)<input type="date" data-f="eta" value="' + esc(c.eta || '') + '"></label></div>' : '') +
     '<div id="info">' + contStats(c) + '</div>' +
@@ -2244,7 +2263,7 @@ function renderConts() {
     (ord ? '<div class="sec">What is on it <span class="dim">' + c.lines.length + ' lines</span></div><div class="row"><label class="fld sm">SKU<input type="text" id="lnSku" list="skuList" placeholder="type or pick a SKU" maxlength="40"></label><label class="fld xs">Qty<input type="number" id="lnQty" min="1" step="1" value="1"></label><button class="pri" data-act="lnAdd">Add</button></div>' +
       '<details class="fold paste"><summary>Paste many lines</summary><textarea id="lnText" rows="4" placeholder="SKU and quantity, one per line.&#10;Paste two columns straight from a spreadsheet."></textarea><div class="row"><button data-act="lnPaste">Add these lines</button></div></details>' : inn ? '<div class="sec">Packing list</div>' : '') +
     (inn ? '<div class="row">' + pm + '<label class="fld sm">Filter<input type="text" id="itemQ" value="' + esc(itemQ) + '" placeholder="SKU, model, words"></label></div><div id="items">' + contItems(c) + '</div>' : '') +
-    moveHtml(c, '<button data-act="turn" data-by="90">Turn 90°</button>') + '<div class="row acts"><button data-act="hide">' + (c.hidden ? 'Show' : 'Hide') + ' container</button>' + (ord ? '<button class="danger" data-act="remove">Delete this order</button>' : '') + '</div>' + stockCard() + list;
+    '<div class="row acts"><button data-act="hide">' + (c.hidden ? 'Show' : 'Hide') + ' container</button>' + (ord ? '<button class="danger" data-act="remove">Delete this order</button>' : '') + '</div>' + stockCard() + list;
 }
 
 // ---------------------------------------------------------------- SKUs tab
@@ -2265,15 +2284,38 @@ function renderSkus() {
       '<div class="row"><label class="fld sm" title="Type a CBM here to scale the box to it">CBM per box' + ni('cbm', skuOk(s) ? +skuCbm(s).toFixed(4) : 0, 0.001, 80) + '</label><label class="fld sm" title="For a SKU that ships as several boxes">Boxes per unit' + ni('boxes', s.boxes, 1, 99) + '</label><label class="fld sm" title="For small parts packed several to a box">Units per box' + ni('pcs', s.pcs, 1, 9999) + '</label></div>' +
       '<div id="skuInfo">' + skuInfo(s) + '</div><div class="dim">Size it started with: ' + (b && skuOk(b) ? [b.l, b.w, b.h].join(' × ') + ' in (' + b.src + ')' : 'none') + '.</div>' +
       '<div class="row acts">' + (b ? '<button data-act="skuReset"' + (skus[openSku] ? '' : ' disabled') + '>Back to the original size</button>' : '<button class="danger" data-act="skuDel">Delete this SKU</button>') + '</div></div>'; }
-  return '<div class="how"><b>SKU sizes</b><div class="dim">The box each SKU ships in. It drives the containers you build and the rack-space forecast, so correct any that are wrong. For a SKU that ships as several boxes, set the size of one box and the number of boxes per unit: a garage door in five 16 ft × 2 ft × 3 in boxes is 192 × 24 × 3 with 5 boxes per unit.</div></div>' + ed +
+  return '<div class="how"><b>SKU sizes</b><div class="dim">The box each SKU ships in. Changing L/W/H updates the 3D cartons in containers right away (incoming loads that use that SKU are repacked with your sizes) and autosaves with the layout. Rack stock still keeps Fishbowl box sizes. For a SKU that ships as several boxes, set one box size and boxes-per-unit.</div></div>' + ed +
     '<div class="row"><label class="fld sm">Find<input type="text" id="skuQ" value="' + esc(skuQ) + '" placeholder="SKU or words"></label><label class="chk"><input type="checkbox" id="skuOnly"' + (skuOnly ? ' checked' : '') + '> Edited only</label></div>' +
     '<div class="row"><label class="fld sm">A SKU that is not listed<input type="text" id="skuNew" placeholder="e.g. 160100" maxlength="40"></label><button class="pri" data-act="skuAdd">+ Add SKU</button></div><div id="skuTbl">' + skuTable() + '</div>' +
-    '<div class="dim" style="margin-top:8px">Stock already drawn in the racks keeps the size it has in the Fishbowl model. These sizes are used for containers and the forecast.</div>';
+    '<div class="dim" style="margin-top:8px">Rack stock keeps Fishbowl sizes. Container cartons and the receiving forecast use the sizes you set here.</div>';
 }
 
 // ---------------------------------------------------------------- actions
 function planChanged(c) { if (c) { delete packCache[c.id]; buildCont(c); } refreshSel(); invalidate(); commit(); if ($('q').value) search($('q').value); render(); }
-function skuChanged() { dirtyPacks(); conts.forEach(c => { if (c.kind === 'order' && !c.removed && !c.received) buildCont(c); }); refreshSel(); invalidate(); commit(); }
+function repackIncoming(c) {
+  if (!c || c.kind !== 'incoming') return;
+  const m = {}, lines = [];
+  PACK.list[c.src].items.forEach(it => { if (m[it[0]]) m[it[0]].qty += it[4]; else lines.push(m[it[0]] = { sku: it[0], qty: it[4] }); });
+  c.kind = 'order'; c.lines = lines; c.po = c.po || PACK.order; delete packCache[c.id];
+}
+function contHasSku(c, sku) {
+  if (!c || !sku) return false;
+  if (c.kind === 'order') return (c.lines || []).some(ln => ln.sku === sku);
+  if (c.kind === 'incoming') return contPack(c).items.some(it => it[0] === sku);
+  return false;
+}
+let skuLiveTimer = null;
+function skuChanged(doCommit) {
+  dirtyPacks();
+  const k = openSku;
+  conts.forEach(c => {
+    if (c.removed || c.received) return;
+    if (c.kind === 'order') { buildCont(c); return; }
+    if (c.kind === 'incoming' && k && contHasSku(c, k) && skus[k] && skuOk(skuEff(k))) { repackIncoming(c); buildCont(c); }
+  });
+  refreshSel(); invalidate();
+  if (doCommit !== false) commit();
+}
 function editSku(el, final) {
   const k = openSku, f = el.dataset.sf, s = skuEff(k); if (!s) return;
   if (f === 'desc') { skus[k] = Object.assign({}, skus[k], { desc: el.value.slice(0, 80) }); if (final) { commit(); render(); } return; }
@@ -2282,7 +2324,11 @@ function editSku(el, final) {
   if (f === 'cbm') { if (!final || !(v > 0)) return; const cur = skuCbm(s); if (cur > 0) { const q = Math.cbrt(v / cur); e.l = r2(s.l * q); e.w = r2(s.w * q); e.h = r2(s.h * q); } else e.l = e.w = e.h = r2(Math.cbrt(v / IN3)); }
   else if (f === 'boxes' || f === 'pcs') e[f] = Math.max(1, Math.round(v)); else e[f] = r2(Math.min(v, 720));
   if (b && e.l === b.l && e.w === b.w && e.h === b.h && e.boxes === b.boxes && e.pcs === b.pcs) delete skus[k]; else skus[k] = Object.assign({}, skus[k], e);
-  if (final) { skuChanged(); render(); } else { const d = $('skuInfo'); if (d) d.innerHTML = skuInfo(skuEff(k)); }
+  if (final) { if (skuLiveTimer) { clearTimeout(skuLiveTimer); skuLiveTimer = null; } skuChanged(true); render(); }
+  else {
+    const d = $('skuInfo'); if (d) d.innerHTML = skuInfo(skuEff(k));
+    if (f !== 'cbm') { if (skuLiveTimer) clearTimeout(skuLiveTimer); skuLiveTimer = setTimeout(() => { skuLiveTimer = null; skuChanged(false); }, 140); }
+  }
 }
 function addLines(c, pairs) {
   let n = 0; pairs.forEach(p => { const k = String(p[0] || '').trim().toUpperCase().slice(0, 40), q = Math.round(p[1]); if (!k || !(q > 0) || /^(SKU|PART|ITEM)( ?#| NUMBER| NO\.?)?$/.test(k)) return; if (!skuEff(k)) skus[k] = { l: 0, w: 0, h: 0, boxes: 1, pcs: 1, desc: '' }; const ex = c.lines.find(l => l.sku === k); if (ex) ex.qty += q; else c.lines.push({ sku: k, qty: q }); n++; });
@@ -2317,7 +2363,7 @@ function planClick(act, el) {
   if (act === 'sku') { openSku = openSku === el.dataset.sku ? null : el.dataset.sku; render(); panel.scrollTop = 0; return true; }
   if (act === 'skuClose') { openSku = null; render(); return true; }
   if (act === 'skuAdd') { const k = $('skuNew').value.trim().toUpperCase(); if (!k) return true; if (!skuEff(k)) { skus[k] = { l: 0, w: 0, h: 0, boxes: 1, pcs: 1, desc: '' }; refreshSkuList(); commit(); } openSku = k; skuQ = ''; render(); return true; }
-  if (act === 'skuReset' || act === 'skuDel') { delete skus[openSku]; if (act === 'skuDel') { openSku = null; refreshSkuList(); } skuChanged(); render(); return true; }
+  if (act === 'skuReset' || act === 'skuDel') { delete skus[openSku]; if (act === 'skuDel') { openSku = null; refreshSkuList(); } skuChanged(true); render(); return true; }
   if (act === 'moveMode') { if (sel) { moveMode(!dragOn); refreshSel(); render(); } return true; }
   if (!sel) return false; const o = sel.obj;
   if (act === 'asBuilt' && sel.kind === 'run') { o.ok = !o.ok; refreshSel(); commit(); readouts(); return true; }
@@ -2477,7 +2523,15 @@ const ray = new THREE.Raycaster(), mv = new THREE.Vector2(), groundPl = new THRE
 function setRay(cx, cy) { const rc = dom.getBoundingClientRect(); mv.set((cx - rc.left) / rc.width * 2 - 1, -(cy - rc.top) / rc.height * 2 + 1); ray.setFromCamera(mv, cam); }
 function groundPoint(cx, cy) { setRay(cx, cy); const p = new THREE.Vector3(); return ray.ray.intersectPlane(groundPl, p) ? p : null; }
 function pickAt(cx, cy) { setRay(cx, cy); const a = []; [runsRoot, areasRoot, equipRoot, contRoot].forEach(root => { if (root.visible) root.traverse(o => { if (o.isMesh && o.userData.sel && o.visible) a.push(o); }); }); return ray.intersectObjects(a, false)[0] || null; }
-function hitsSelected(cx, cy) { if (!sel || !sel.obj.g) return false; setRay(cx, cy); const a = []; sel.obj.g.traverse(o => { if (o.isMesh && o.userData.sel && o.visible) a.push(o); }); selG.traverse(o => { if (o.userData.plate) a.push(o); }); return ray.intersectObjects(a, false).length > 0; }
+function hitsSelected(cx, cy) {
+  if (!sel || !sel.obj.g) return false;
+  setRay(cx, cy);
+  const a = []; sel.obj.g.traverse(o => { if (o.isMesh && o.userData.sel && o.visible) a.push(o); }); selG.traverse(o => { if (o.userData.plate) a.push(o); });
+  if (ray.intersectObjects(a, false).length > 0) return true;
+  const p = groundPoint(cx, cy); if (!p) return false;
+  const f = foot(sel), r = Math.hypot(f.w / 2 + 2.5, f.d / 2 + 2.5);
+  return Math.hypot(p.x - f.cx, p.z - f.cz) <= r;
+}
 const moveTo = p => { const d = p.clone().sub(ctl.target); ctl.target.add(d); cam.position.add(d); ctl.update(); invalidate(false); };
 const slotAt = (r, p) => Math.max(0, Math.min(r.bays - 1, Math.floor((r.axis === 'z' ? p.z - r.z : p.x - r.x) / r.pitch)));
 let down = null, drag = null;
@@ -2485,7 +2539,7 @@ dom.addEventListener('pointerdown', e => {
   down = [e.clientX, e.clientY]; invalidate(false); if (e.button !== 0) return;
   if (e.shiftKey || e.ctrlKey || e.metaKey) { ctl.mouseButtons.LEFT = THREE.MOUSE.PAN; return; }
   ctl.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
-  if (dragOn && hitsSelected(e.clientX, e.clientY)) { const p = groundPoint(e.clientX, e.clientY); if (p) { const o = sel.obj, own = sel.kind === 'equip' || sel.kind === 'cont'; drag = { p0: p, x0: o.x, z0: o.z, dx: 0, dz: 0, moved: false, own }; ctl.enabled = false; try { dom.setPointerCapture(e.pointerId); } catch (x) {} } }
+  if (dragOn && hitsSelected(e.clientX, e.clientY)) { const p = groundPoint(e.clientX, e.clientY); if (p) { const o = sel.obj, own = sel.kind === 'equip' || sel.kind === 'cont'; drag = { p0: p, x0: o.x, z0: o.z, dx: 0, dz: 0, moved: false, own }; ctl.enabled = false; try { e.preventDefault(); e.stopPropagation(); dom.setPointerCapture(e.pointerId); } catch (x) {} } }
 }, true);
 dom.addEventListener('pointermove', e => {
   if (drag) {
