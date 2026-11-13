@@ -13,6 +13,17 @@ function clientKey(request) {
   return request.headers.get("x-real-ip") || "unknown";
 }
 
+function wantSecureCookie(request) {
+  try {
+    const url = new URL(request.url);
+    if (url.protocol === "https:") return true;
+  } catch {
+    /* ignore */
+  }
+  const proto = request.headers.get("x-forwarded-proto");
+  return proto === "https";
+}
+
 export async function POST(request) {
   const limit = allowLoginAttempt(clientKey(request));
   if (!limit.ok) {
@@ -45,7 +56,7 @@ export async function POST(request) {
         ? "Server credentials are not configured"
         : "Invalid username or password";
     return Response.json(
-      { error: message },
+      { error: message, reason: result.reason },
       {
         status: 401,
         headers: { "cache-control": "private, no-store" },
@@ -60,7 +71,9 @@ export async function POST(request) {
       status: 200,
       headers: {
         "cache-control": "private, no-store",
-        "set-cookie": sessionCookieHeader(token),
+        "set-cookie": sessionCookieHeader(token, {
+          secure: wantSecureCookie(request),
+        }),
       },
     }
   );

@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-With secrets unset locally, sign in as `preview` / `preview`. Hosted Cursor/Vercel runtimes reject that placeholder — live requires real secrets.
+With `npm run dev` and secrets unset, sign in as `preview` / `preview`. Production/`next start` and hosted runtimes require real `WAREHOUSE_*` secrets (no placeholder).
 
 ## Layout
 
