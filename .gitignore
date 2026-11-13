@@ -11,3 +11,6 @@ server-data/warehouse-site-data.full.js
 server-data/vendor/
 
 supabase/.temp/
+
+# Split warehouse app JS (runtime only; not packed)
+server-data/app/*.js
