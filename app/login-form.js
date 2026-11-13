@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function LoginForm({ initialError, disabled }) {
@@ -10,6 +10,20 @@ export function LoginForm({ initialError, disabled }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(initialError || "");
   const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/auth-status", { credentials: "same-origin", cache: "no-store" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setStatus(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function onSubmit(event) {
     event.preventDefault();
@@ -22,19 +36,14 @@ export function LoginForm({ initialError, disabled }) {
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          username: username.trim(),
-          password: password.trim(),
+          username,
+          password,
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (data.status) setStatus(data.status);
       if (!res.ok) {
-        if (data.reason === "not_configured") {
-          setError(
-            "Server credentials are not configured. Re-save WAREHOUSE_USERNAME and WAREHOUSE_PASSWORD in Cursor Secrets, then republish."
-          );
-        } else {
-          setError(data.error || "Invalid username or password");
-        }
+        setError(data.error || "Invalid username or password");
         setPending(false);
         return;
       }
@@ -60,6 +69,32 @@ export function LoginForm({ initialError, disabled }) {
 
   return (
     <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
+      {status ? (
+        <p
+          style={{
+            margin: 0,
+            padding: "10px 12px",
+            borderRadius: 8,
+            background: "rgba(61, 111, 143, 0.18)",
+            border: "1px solid #3a4552",
+            color: "#b7c0ca",
+            fontSize: 12,
+            lineHeight: 1.45,
+          }}
+        >
+          Server secrets:{" "}
+          {status.configured ? "loaded" : "missing"} · username len{" "}
+          {status.usernameNormalizedLength ?? "?"} · password len{" "}
+          {status.passwordNormalizedLength ?? "?"} · username matches
+          Riley.Human: {status.usernameMatchesExpected ? "yes" : "no"}
+          {status.usernameHasBom || status.passwordHasBom
+            ? " · BOM detected in a secret"
+            : ""}
+          {status.usernameHadWrappingQuotes || status.passwordHadWrappingQuotes
+            ? " · quotes detected around a secret"
+            : ""}
+        </p>
+      ) : null}
       <label style={{ display: "grid", gap: 6, fontSize: 13, color: "#9aa5b1" }}>
         Username
         <input

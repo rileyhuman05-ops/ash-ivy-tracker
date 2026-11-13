@@ -1,4 +1,5 @@
 import {
+  authRuntimeStatus,
   createSessionToken,
   sessionCookieHeader,
   verifyCredentials,
@@ -20,8 +21,7 @@ function wantSecureCookie(request) {
   } catch {
     /* ignore */
   }
-  const proto = request.headers.get("x-forwarded-proto");
-  return proto === "https";
+  return request.headers.get("x-forwarded-proto") === "https";
 }
 
 export async function POST(request) {
@@ -49,14 +49,24 @@ export async function POST(request) {
   const username = String(body?.username ?? "");
   const password = String(body?.password ?? "");
   const result = verifyCredentials(username, password);
+  const status = authRuntimeStatus();
 
   if (!result.ok) {
     const message =
       result.reason === "not_configured"
         ? "Server credentials are not configured"
-        : "Invalid username or password";
+        : !result.usernameMatched
+          ? "Username does not match the saved secret"
+          : "Password does not match the saved secret";
     return Response.json(
-      { error: message, reason: result.reason },
+      {
+        error: message,
+        reason: result.reason,
+        usernameMatched: Boolean(result.usernameMatched),
+        passwordMatched: Boolean(result.passwordMatched),
+        // Safe booleans/lengths only — never secret values
+        status,
+      },
       {
         status: 401,
         headers: { "cache-control": "private, no-store" },
