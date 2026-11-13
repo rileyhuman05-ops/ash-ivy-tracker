@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { readSessionFromRequest } from "../../../lib/auth";
+import { requireIdentity } from "../../../cursor/identity.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,15 +10,14 @@ const MODEL_RELATIVE = path.join(
   "warehouse-site-preview-v3.html"
 );
 
+/**
+ * Access control: Cursor Private app identity only (no warehouse password).
+ * Owner accepted that anyone who can open this Private app may view the model.
+ */
 export async function GET(request) {
-  if (!readSessionFromRequest(request)) {
-    return new Response("Unauthorized", {
-      status: 401,
-      headers: {
-        "content-type": "text/plain; charset=utf-8",
-        "cache-control": "private, no-store",
-      },
-    });
+  const identity = await requireIdentity(request);
+  if (identity instanceof Response) {
+    return identity;
   }
 
   const filePath = path.join(process.cwd(), MODEL_RELATIVE);
@@ -35,7 +34,6 @@ export async function GET(request) {
     });
   }
 
-  // Treat upload as v3 even if the embedded title still says preview v2.
   html = html.replace(
     /<title>Bayline Mesa Warehouse — site model preview v2<\/title>/,
     "<title>Bayline Mesa Warehouse — site model preview v3</title>"
