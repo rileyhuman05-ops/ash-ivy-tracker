@@ -9,6 +9,8 @@ export const runtime = "nodejs";
 const SLIM_RELATIVE = path.join("server-data", "warehouse-site-data.js");
 const FULL_LOCAL_RELATIVE = path.join("server-data", "warehouse-site-data.full.js");
 const APP_DIR = path.join("server-data", "app");
+const THREE_RELATIVE = path.join("node_modules", "three", "build", "three.min.js");
+const ORBIT_RELATIVE = path.join("node_modules", "three", "examples", "js", "controls", "OrbitControls.js");
 const SEED_ID = "bayline-mesa";
 const APP_ID = "bayline-mesa";
 
@@ -75,13 +77,23 @@ async function loadAppScript() {
   }
 }
 
+async function loadFile(rel) {
+  try {
+    return await readFile(path.join(process.cwd(), rel), "utf8");
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request) {
   const identity = await requireIdentity(request);
   if (identity instanceof Response) return identity;
 
   const name = new URL(request.url).searchParams.get("name");
   let body = null;
-  if (name === "data") body = await loadSeedScript();
+  if (name === "three") body = await loadFile(THREE_RELATIVE);
+  else if (name === "orbit") body = await loadFile(ORBIT_RELATIVE);
+  else if (name === "data") body = await loadSeedScript();
   else if (name === "app") body = await loadAppScript();
   else {
     return new Response("Not Found", {
@@ -99,7 +111,7 @@ export async function GET(request) {
     status: 200,
     headers: {
       "content-type": "application/javascript; charset=utf-8",
-      "cache-control": "private, max-age=60",
+      "cache-control": "private, max-age=300",
       "x-robots-tag": "noindex, nofollow",
     },
   });
