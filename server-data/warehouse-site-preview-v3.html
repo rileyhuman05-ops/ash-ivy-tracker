@@ -1214,6 +1214,7 @@ const r2 = v => Math.round(v * 100) / 100;
 const snap = v => Math.round(v * 2) / 2;
 const pad2 = n => (n < 10 ? '0' : '') + n;
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const plain = s => String(s == null ? '' : s).replace(/<[^>]*>/g, '').replace(/[ --]/g, '').slice(0, 240);
 const LETTERS = 'ABCDEFGHIJKLMNOP';
 const KIND = ['box', 'overflow slab', 'overflow excess marker', 'unknown size marker', 'placeholder (no size data)'];
 const num = (v, lo, hi, def) => { v = parseFloat(v); if (!isFinite(v)) return def; return Math.min(hi, Math.max(lo, v)); };
@@ -1852,12 +1853,12 @@ function cloudParse(res) {
   return res.json().catch(() => ({}));
 }
 function cloudFailMsg(data, res) {
-  if (data && data.__nonJson) return 'Cloud API returned a sign-in page (HTTP ' + (data.status || res.status) + ')';
+  if (data && data.__nonJson) return plain('Cloud API returned a sign-in page (HTTP ' + (data.status || res.status) + ')');
   const err = data && (data.error || data.message);
-  if (err === 'supabase_invalid_api_key' || err === 'supabase_not_configured' || (data && data.configured === false && /SERVICE_ROLE|JWT|secret/i.test(String(data.message || '')))) {
-    return String(data.message || 'Cloud key rejected — update SUPABASE_SERVICE_ROLE_KEY in Cursor Secrets');
+  if (err === 'supabase_invalid_api_key' || err === 'supabase_not_configured' || (data && data.configured === false && /key|JWT|secret|database/i.test(String(data.message || '')))) {
+    return plain(data.message || 'Cloud database key rejected — update the bound server secret in Cursor Secrets');
   }
-  return String(err || ('HTTP ' + res.status));
+  return plain(err || ('HTTP ' + res.status));
 }
 async function cloudLoad() {
   cloudStatus = 'loading'; chrome();
@@ -1867,7 +1868,7 @@ async function cloudLoad() {
     const data = await cloudParse(res);
     if (data.__nonJson) { cloudStatus = 'auth'; cloudMsg = cloudFailMsg(data, res); chrome(); return; }
     if (!res.ok) { cloudStatus = (data.error === 'supabase_invalid_api_key' || res.status === 503) ? 'offline' : 'error'; cloudMsg = cloudFailMsg(data, res); chrome(); return; }
-    if (!data.configured) { cloudStatus = 'offline'; cloudMsg = String(data.message || 'Cloud save not configured'); chrome(); return; }
+    if (!data.configured) { cloudStatus = 'offline'; cloudMsg = plain(data.message || 'Cloud save not configured'); chrome(); return; }
     if (!data.state || !data.state.runs || !data.state.types) { cloudRev = data.revision || 0; cloudStatus = 'ready'; cloudMsg = 'No saved layout yet'; chrome(); return; }
     cloudIgnore = true;
     try {
@@ -1880,7 +1881,7 @@ async function cloudLoad() {
       cloudMsg = data.updatedAt ? ('Loaded · ' + new Date(data.updatedAt).toLocaleString()) : 'Loaded';
       render();
     } finally { cloudIgnore = false; }
-  } catch (e) { cloudStatus = 'error'; cloudMsg = e.message || String(e); }
+  } catch (e) { cloudStatus = 'error'; cloudMsg = plain(e.message || String(e)); }
   chrome();
 }
 async function cloudSave(manual) {
@@ -1909,7 +1910,7 @@ async function cloudSave(manual) {
     cloudRev = data.revision || cloudRev;
     cloudStatus = 'saved';
     cloudMsg = 'Saved' + (data.updatedAt ? (' · ' + new Date(data.updatedAt).toLocaleString()) : '');
-  } catch (e) { cloudStatus = 'error'; cloudMsg = e.message || String(e); }
+  } catch (e) { cloudStatus = 'error'; cloudMsg = plain(e.message || String(e)); }
   chrome();
 }
 function scheduleCloudSave() {
@@ -1944,8 +1945,8 @@ const numIn = (f, v, step, min, max) => '<input type="number" data-f="' + f + '"
 function chrome() {
   $('undo').disabled = !undoStack.length; $('undo').textContent = 'Undo' + (undoStack.length ? ' (' + undoStack.length + ')' : '');
   const lost = lostTotal(); let lvl = 0; runs.forEach(r => { lvl += r.unplaced ? r.unplaced.boxes : 0; });
-  const cloudLabel = cloudStatus === 'saving' || cloudStatus === 'pending' ? cloudMsg : cloudStatus === 'saved' ? cloudMsg : cloudStatus === 'ready' ? cloudMsg : cloudStatus === 'loading' ? 'Loading saved layout…' : cloudStatus === 'offline' ? 'Cloud offline' : cloudStatus === 'conflict' || cloudStatus === 'error' || cloudStatus === 'auth' ? cloudMsg : '';
-  $('status').innerHTML = runs.filter(r => !r.removed).length + ' racks · ' + areas.filter(a => !a.removed).length + ' areas · ' + (undoStack.length ? undoStack.length + ' edit' + (undoStack.length > 1 ? 's' : '') + ' in undo' : 'no local undo') + (cloudLabel ? ' · ' + esc(cloudLabel) : '') + (lost + lvl ? ' · <b class="bad">' + fmt(lost + lvl) + ' boxes without a home</b>' : '');
+  const cloudLabel = cloudStatus === 'saving' || cloudStatus === 'pending' ? cloudMsg : cloudStatus === 'saved' ? cloudMsg : cloudStatus === 'ready' ? cloudMsg : cloudStatus === 'loading' ? 'Loading saved layout…' : cloudStatus === 'offline' ? (cloudMsg || 'Cloud offline') : cloudStatus === 'conflict' || cloudStatus === 'error' || cloudStatus === 'auth' ? cloudMsg : '';
+  $('status').innerHTML = runs.filter(r => !r.removed).length + ' racks · ' + areas.filter(a => !a.removed).length + ' areas · ' + (undoStack.length ? undoStack.length + ' edit' + (undoStack.length > 1 ? 's' : '') + ' in undo' : 'no local undo') + (cloudLabel ? ' · ' + esc(cloudLabel) : '') + (lost + lvl ? ' · <b class="bad">' + fmt(lost + lvl) + ' boxes without a home</b>' : ''); // cloudLabel always via esc()
   ['racks', 'areas', 'equip', 'conts', 'skus', 'more'].forEach(k => $('tab-' + k).classList.toggle('on', tab === k));
 }
 function stockCard() {

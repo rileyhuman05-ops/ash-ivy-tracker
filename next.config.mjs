@@ -5,6 +5,8 @@ const nextConfig = {
   outputFileTracingIncludes: {
     "/api/viewer": ["./server-data/warehouse-site-preview-v3.html"],
   },
+  // Never inline server secrets into the browser bundle.
+  // SUPABASE_* must stay process.env reads in Node route handlers only.
 };
 
 export default nextConfig;
