@@ -28,8 +28,8 @@ Schema: `supabase/migrations/001_warehouse_layouts.sql` (RLS on, no anon policie
 | --- | --- |
 | `/` | Redirects to the model |
 | `/api/viewer` | Serves HTML after Cursor identity check |
-| `/api/layout` | Shared layout load/save |
-| `warehouse-model/` | Canonical HTML |
+| `/api/layout` | Shared layout load/save (size-capped body) |
+| `server-data/` | Server-only HTML (not a public URL; middleware 404s direct paths) |
 
 ## Local smoke
 
