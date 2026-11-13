@@ -4,7 +4,10 @@ import {
   validateLayoutState,
 } from "../../../lib/layout-limits.js";
 import { loadLayout, saveLayout } from "../../../lib/layout-store.js";
-import { supabaseConfigured } from "../../../lib/supabase.js";
+import {
+  supabaseConfigured,
+  supabaseConfigMessage,
+} from "../../../lib/supabase.js";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,13 +33,23 @@ export async function GET(request) {
     return json({
       configured: false,
       state: null,
-      message: "Supabase secrets not bound yet",
+      message: supabaseConfigMessage(),
     });
   }
 
   const result = await loadLayout(identity);
   if (!result.ok) {
-    return json({ configured: true, error: result.error }, 500);
+    const badKey = result.error === "supabase_invalid_api_key";
+    return json(
+      {
+        configured: !badKey,
+        error: result.error,
+        message: badKey
+          ? "SUPABASE_SERVICE_ROLE_KEY was rejected by Supabase — update the service_role secret in Cursor Secrets"
+          : result.error,
+      },
+      badKey ? 503 : 500
+    );
   }
   if (!result.row) {
     return json({
@@ -103,10 +116,14 @@ export async function PUT(request) {
 
   const result = await saveLayout(identity, state, expectedRevision);
   if (!result.ok) {
+    const badKey = result.error === "supabase_invalid_api_key";
     return json(
       {
         error: result.error,
         revision: result.revision ?? null,
+        message: badKey
+          ? "SUPABASE_SERVICE_ROLE_KEY was rejected by Supabase — update the service_role secret in Cursor Secrets"
+          : undefined,
       },
       result.status || 500
     );
