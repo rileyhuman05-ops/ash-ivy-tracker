@@ -5,3 +5,9 @@ node_modules
 !.env.example
 *.log
 .DS_Store
+
+# Local-only bulky seed / vendor (not packed for publish review)
+server-data/warehouse-site-data.full.js
+server-data/vendor/
+
+supabase/.temp/

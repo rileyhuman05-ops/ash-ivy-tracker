@@ -1,5 +1,5 @@
-# Vendor scripts (Three.js)
+# Vendor (local only)
 
-`three.min.js` and `OrbitControls.js` are the MIT-licensed Three.js r147-era builds previously inlined in the warehouse HTML.
+Three.js is loaded from jsDelivr (`three@0.147.0`) in the warehouse HTML.
 
-They are served only through the identity-gated `/api/viewer/asset` route so the main HTML stays small enough for publish security review.
+Do not commit `three.min.js` / `OrbitControls.js` here — they are gitignored so publish security review is not flooded by minified vendor blobs.
