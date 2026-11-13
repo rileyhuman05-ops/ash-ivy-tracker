@@ -45,7 +45,7 @@ export async function GET(request) {
         configured: !badKey,
         error: result.error,
         message: badKey
-          ? "SUPABASE_SERVICE_ROLE_KEY was rejected by Supabase — update the service_role secret in Cursor Secrets"
+          ? "Cloud database key was rejected — update the bound server secret in Cursor Secrets"
           : result.error,
       },
       badKey ? 503 : 500
@@ -122,7 +122,7 @@ export async function PUT(request) {
         error: result.error,
         revision: result.revision ?? null,
         message: badKey
-          ? "SUPABASE_SERVICE_ROLE_KEY was rejected by Supabase — update the service_role secret in Cursor Secrets"
+          ? "Cloud database key was rejected — update the bound server secret in Cursor Secrets"
           : undefined,
       },
       result.status || 500

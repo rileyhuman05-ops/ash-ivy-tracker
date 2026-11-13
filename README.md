@@ -20,7 +20,7 @@ Edits in the 3D viewer (racks, areas, equipment, containers, SKUs, settings) **a
 | `GET/PUT /api/layout` | Load/save after Cursor identity check |
 | File download/load | Optional backup in the More tab |
 
-Schema: `supabase/migrations/001_warehouse_layouts.sql` (RLS on, no anon policies; service role only).
+Schema: `supabase/migrations/` (RLS on; server routes use the service role from env only — never in the browser).
 
 ## Layout
 
