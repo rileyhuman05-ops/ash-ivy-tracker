@@ -1,6 +1,5 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { readSessionFromRequest } from "../../../lib/auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -10,17 +9,11 @@ const MODEL_RELATIVE = path.join(
   "warehouse-site-preview-v3.html"
 );
 
-export async function GET(request) {
-  if (!readSessionFromRequest(request)) {
-    return new Response("Unauthorized", {
-      status: 401,
-      headers: {
-        "content-type": "text/plain; charset=utf-8",
-        "cache-control": "private, no-store",
-      },
-    });
-  }
-
+/**
+ * Auth temporarily disabled for tonight's go-live.
+ * Re-enable session checks in lib/auth.js + middleware when ready.
+ */
+export async function GET() {
   const filePath = path.join(process.cwd(), MODEL_RELATIVE);
   let html;
   try {
@@ -35,7 +28,6 @@ export async function GET(request) {
     });
   }
 
-  // Treat upload as v3 even if the embedded title still says preview v2.
   html = html.replace(
     /<title>Bayline Mesa Warehouse — site model preview v2<\/title>/,
     "<title>Bayline Mesa Warehouse — site model preview v3</title>"
